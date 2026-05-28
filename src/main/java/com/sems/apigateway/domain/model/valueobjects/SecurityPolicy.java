@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.domain.model.valueobjects;
+package com.sems.apigateway.domain.model.valueobjects;
 
 import java.util.List;
 

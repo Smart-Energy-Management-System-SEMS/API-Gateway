@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.interfaces.rest.transform;
+package com.sems.apigateway.interfaces.rest.transform;
 
 import com.sems.apigateway.interfaces.rest.resources.GatewayHealthResource;
 import org.springframework.stereotype.Component;

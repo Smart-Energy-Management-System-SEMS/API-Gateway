@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.infrastructure.security;
+package com.sems.apigateway.infrastructure.security;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nimbusds.jose.proc.SecurityContext;

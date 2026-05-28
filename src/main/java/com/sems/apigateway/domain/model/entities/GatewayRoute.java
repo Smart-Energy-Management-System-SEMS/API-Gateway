@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.domain.model.entities;
+package com.sems.apigateway.domain.model.entities;
 
 import com.sems.apigateway.domain.model.valueobjects.RoutePolicy;
 import com.sems.apigateway.domain.model.valueobjects.RouteStatus;

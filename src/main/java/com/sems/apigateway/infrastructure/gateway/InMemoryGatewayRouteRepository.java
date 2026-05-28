@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.infrastructure.gateway;
+package com.sems.apigateway.infrastructure.gateway;
 
 import com.sems.apigateway.domain.model.entities.GatewayRoute;
 import com.sems.apigateway.domain.model.valueobjects.RoutePolicy;

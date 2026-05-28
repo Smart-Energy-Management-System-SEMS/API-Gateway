@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.interfaces.rest.controllers;
+package com.sems.apigateway.interfaces.rest.controllers;
 
 import com.sems.apigateway.interfaces.rest.resources.GatewayHealthResource;
 import com.sems.apigateway.interfaces.rest.transform.GatewayHealthResourceAssembler;

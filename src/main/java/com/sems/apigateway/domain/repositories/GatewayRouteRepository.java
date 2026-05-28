@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.domain.repositories;
+package com.sems.apigateway.domain.repositories;
 
 import com.sems.apigateway.domain.model.entities.GatewayRoute;
 

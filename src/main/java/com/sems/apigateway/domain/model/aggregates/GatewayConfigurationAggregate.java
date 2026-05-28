@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.domain.model.aggregates;
+package com.sems.apigateway.domain.model.aggregates;
 
 import com.sems.apigateway.domain.model.entities.GatewayRoute;
 import com.sems.apigateway.domain.model.valueobjects.CorsPolicy;

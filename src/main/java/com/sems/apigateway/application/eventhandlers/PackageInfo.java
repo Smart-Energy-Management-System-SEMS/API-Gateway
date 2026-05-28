@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.application.eventhandlers;
+package com.sems.apigateway.application.eventhandlers;
 
 /**
  * Marker package for application-level event handlers.

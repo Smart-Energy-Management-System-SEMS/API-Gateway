@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.infrastructure.filters;
+package com.sems.apigateway.infrastructure.filters;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.shared.constants;
+package com.sems.apigateway.shared.constants;
 
 public final class GatewayConstants {
 

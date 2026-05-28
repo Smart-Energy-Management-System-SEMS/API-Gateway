@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.shared.utils;
+package com.sems.apigateway.shared.utils;
 
 public final class PathUtils {
 

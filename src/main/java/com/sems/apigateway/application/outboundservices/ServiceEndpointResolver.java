@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.application.outboundservices;
+package com.sems.apigateway.application.outboundservices;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;

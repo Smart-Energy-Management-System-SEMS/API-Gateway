@@ -1,4 +1,4 @@
-﻿package com.sems.apigateway.infrastructure.configuration;
+package com.sems.apigateway.infrastructure.configuration;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.gateway.route.RouteLocator;
