@@ -1,4 +1,4 @@
-﻿# API Gateway SEMS
+# API Gateway SEMS
 
 API Gateway centralizado para SEMS construido con **Java 17**, **Spring Boot**, **Spring Cloud Gateway** y **Maven**.
 
@@ -154,7 +154,7 @@ Filtro global de gateway (`RequestLoggingFilter`) registra por request:
 mvn spring-boot:run
 ```
 
-Gateway por defecto: `http://localhost:8081`.
+Gateway por defecto: `http://localhost:8089`.
 
 ## Compilacion
 
