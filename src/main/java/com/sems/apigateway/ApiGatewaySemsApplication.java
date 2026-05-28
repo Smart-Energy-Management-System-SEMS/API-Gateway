@@ -9,5 +9,4 @@ public class ApiGatewaySemsApplication {
     public static void main(String[] args) {
         SpringApplication.run(ApiGatewaySemsApplication.class, args);
     }
-
 }

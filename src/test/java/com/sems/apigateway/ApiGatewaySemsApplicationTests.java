@@ -9,5 +9,4 @@ class ApiGatewaySemsApplicationTests {
     @Test
     void contextLoads() {
     }
-
 }
