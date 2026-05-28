@@ -1,3 +1,50 @@
+﻿server:
+  port: ${PORT:8081}
+
 spring:
   application:
-    name: API-Gateway-Sems
+    name: api-gateway-sems
+  main:
+    web-application-type: reactive
+  cloud:
+    gateway:
+      httpclient:
+        connect-timeout: 5000
+        response-timeout: 15s
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    root: INFO
+    org.springframework.cloud.gateway: INFO
+    com.sems.apigateway.infrastructure.filters.RequestLoggingFilter: INFO
+
+gateway:
+  services:
+    subscriptions-url: ${SUBSCRIPTIONS_SERVICE_URL:https://microservice-subscriptions-service.onrender.com}
+    analytics-url: ${ANALYTICS_SERVICE_URL:https://microservice-analytics-service.onrender.com}
+    device-management-url: ${DEVICE_MANAGEMENT_SERVICE_URL:https://microservice-device-management-service-jm7b.onrender.com}
+    payments-url: ${PAYMENTS_SERVICE_URL:https://microservice-payments-service.onrender.com}
+    alert-url: ${ALERT_SERVICE_URL:https://microservice-alert-service.onrender.com}
+    iam-url: ${IAM_SERVICE_URL:https://microservice-iam-service.onrender.com}
+    energy-monitoring-url: ${ENERGY_MONITORING_SERVICE_URL:http://localhost:8084}
+  security:
+    enabled: ${GATEWAY_SECURITY_ENABLED:false}
+    jwt:
+      # Use one of the two options below when security is enabled.
+      jwk-set-uri: ${GATEWAY_JWT_JWK_SET_URI:}
+      secret: ${GATEWAY_JWT_SECRET:}
+  cors:
+    allowed-origins: ${GATEWAY_ALLOWED_ORIGINS:${FRONTEND_URL:http://localhost:5173},http://localhost:4200}
+    allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
+    allowed-headers: "*"
+    exposed-headers: ""
+    allow-credentials: true

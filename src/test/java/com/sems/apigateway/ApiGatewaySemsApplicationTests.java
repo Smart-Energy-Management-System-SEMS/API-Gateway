@@ -1,4 +1,4 @@
-package com.sems.apigateway;
+﻿package com.sems.apigateway;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -9,5 +9,4 @@ class ApiGatewaySemsApplicationTests {
     @Test
     void contextLoads() {
     }
-
 }
