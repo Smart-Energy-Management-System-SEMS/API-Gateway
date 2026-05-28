@@ -128,16 +128,24 @@ public class GatewayRouteConfiguration {
 
         List<ServiceRouteConfig> services = new ArrayList<>();
         for (JsonNode serviceNode : servicesNode) {
-            String name = requiredText(serviceNode, "name");
-            String baseUrl = resolveBaseUrl(serviceNode);
-            List<String> pathPatterns = toPathPatterns(serviceNode.path("main_endpoints"));
+            try {
+                String name = requiredText(serviceNode, "name");
+                String baseUrl = resolveBaseUrl(serviceNode);
+                List<String> pathPatterns = toPathPatterns(serviceNode.path("main_endpoints"));
 
-            if (pathPatterns.isEmpty()) {
-                String routePrefix = requiredText(serviceNode, "route_prefix");
-                pathPatterns.add(routePrefix.endsWith("/**") ? routePrefix : routePrefix + "/**");
+                if (pathPatterns.isEmpty()) {
+                    String routePrefix = requiredText(serviceNode, "route_prefix");
+                    pathPatterns.add(routePrefix.endsWith("/**") ? routePrefix : routePrefix + "/**");
+                }
+
+                services.add(new ServiceRouteConfig(name, baseUrl, pathPatterns));
+            } catch (Exception ex) {
+                LOGGER.warn("Skipping malformed service entry from Config-Service: {}", ex.getMessage());
             }
+        }
 
-            services.add(new ServiceRouteConfig(name, baseUrl, pathPatterns));
+        if (services.isEmpty()) {
+            throw new IllegalStateException("Config-Service did not provide any valid service route entries");
         }
 
         return services;
@@ -213,10 +221,26 @@ public class GatewayRouteConfiguration {
 
         var matcher = URL_PATTERN.matcher(rawValue.trim());
         if (matcher.find()) {
-            return matcher.group(1).replaceAll("[),.;]+$", "");
+            String candidate = matcher.group(1).replaceAll("[),.;]+$", "");
+            if (isHttpUrl(candidate)) {
+                return candidate;
+            }
         }
 
-        return rawValue.trim();
+        return "";
+    }
+
+    private boolean isHttpUrl(String value) {
+        if (value == null || value.isBlank() || value.contains("{") || value.contains("}")) {
+            return false;
+        }
+        try {
+            var uri = java.net.URI.create(value);
+            return ("http".equalsIgnoreCase(uri.getScheme()) || "https".equalsIgnoreCase(uri.getScheme()))
+                    && uri.getHost() != null;
+        } catch (Exception ex) {
+            return false;
+        }
     }
 
     private String sanitizeRouteId(String input) {
