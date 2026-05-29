@@ -198,12 +198,34 @@ public class GatewayRouteConfiguration {
                 continue;
             }
 
-            patterns.add(rawPath
+            String normalizedPath = stripHttpMethodPrefix(rawPath);
+            if (normalizedPath.isBlank()) {
+                continue;
+            }
+
+            patterns.add(normalizedPath
                     .replaceAll("\\{[^/]+}", "*")
                     .replaceAll(":([^/]+)", "*"));
         }
 
         return patterns;
+    }
+
+    private String stripHttpMethodPrefix(String rawEndpoint) {
+        if (rawEndpoint == null) {
+            return "";
+        }
+
+        String trimmed = rawEndpoint.trim();
+        int firstSpace = trimmed.indexOf(' ');
+        if (firstSpace > 0) {
+            String maybeMethod = trimmed.substring(0, firstSpace).toUpperCase();
+            if (maybeMethod.matches("GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD")) {
+                return trimmed.substring(firstSpace + 1).trim();
+            }
+        }
+
+        return trimmed;
     }
 
     private String requiredText(JsonNode node, String fieldName) {
