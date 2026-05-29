@@ -55,7 +55,7 @@ public class GatewayRouteConfiguration {
                 new ServiceRouteConfig("device-management-service", deviceManagementServiceUrl, List.of("/api/v1/devices/**", "/api/v1/users/*/devices/**", "/api/v1/users/*/bindings/**", "/api/v1/bindings/**", "/api/v1/configurations/**", "/api/v1/health/device-management")),
                 new ServiceRouteConfig("alert-service", alertServiceUrl, List.of("/api/v1/alerts-service/**")),
                 new ServiceRouteConfig("subscriptions-service", subscriptionsServiceUrl, List.of("/api/v1/subscription-plans/**", "/api/v1/subscriptions/**", "/api/v1/webhooks/stripe")),
-                new ServiceRouteConfig("payments-service", paymentsServiceUrl, List.of("/api/v1/payments/**")),
+                new ServiceRouteConfig("payments-service", paymentsServiceUrl, List.of("/payments/**")),
                 new ServiceRouteConfig("analytics-service", analyticsServiceUrl, List.of("/api/v1/analytics/**")),
                 new ServiceRouteConfig("energy-monitoring-service", energyMonitoringServiceUrl, List.of("/api/v1/energy/**"))
         );
@@ -71,6 +71,14 @@ public class GatewayRouteConfiguration {
 
         for (var service : services) {
             for (var pathPattern : service.pathPatterns()) {
+                if ("/payments/**".equals(pathPattern)) {
+                    routes.route(service.name() + "-" + sanitizeRouteId(pathPattern), r -> r
+                            .path("/payments/**")
+                            .filters(f -> f.rewritePath("/payments/?(?<remaining>.*)", "/${remaining}"))
+                            .uri(service.targetBaseUrl()));
+                    continue;
+                }
+
                 routes.route(service.name() + "-" + sanitizeRouteId(pathPattern), r -> r
                         .path(pathPattern)
                         .uri(service.targetBaseUrl()));

@@ -42,7 +42,7 @@ gateway:
     subscriptions-url: ${SUBSCRIPTIONS_SERVICE_URL:http://localhost:8082}
     analytics-url: ${ANALYTICS_SERVICE_URL:http://localhost:8004}
     device-management-url: ${DEVICE_MANAGEMENT_SERVICE_URL:http://localhost:8083}
-    payments-url: ${PAYMENTS_SERVICE_URL:http://localhost:8085}
+    payments-url: ${PAYMENTS_SERVICE_URL:http://localhost:8086}
     alert-url: ${ALERT_SERVICE_URL:http://localhost:8085}
     iam-url: ${IAM_SERVICE_URL:http://localhost:8080}
     energy-monitoring-url: ${ENERGY_MONITORING_SERVICE_URL:http://localhost:8001}
