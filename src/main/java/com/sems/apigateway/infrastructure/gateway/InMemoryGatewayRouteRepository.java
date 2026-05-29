@@ -78,9 +78,9 @@ public class InMemoryGatewayRouteRepository implements GatewayRouteRepository {
                 ),
                 new GatewayRoute(
                         "payments",
-                        "/api/v1/payments/**",
-                        new ServiceEndpoint("payments-service", paymentsServiceUrl, "/api/v1"),
-                        new RoutePolicy(false, null, null),
+                        "/payments/**",
+                        new ServiceEndpoint("payments-service", paymentsServiceUrl, "/"),
+                        new RoutePolicy(false, "/payments", "/"),
                         RouteStatus.ACTIVE
                 ),
                 new GatewayRoute(
