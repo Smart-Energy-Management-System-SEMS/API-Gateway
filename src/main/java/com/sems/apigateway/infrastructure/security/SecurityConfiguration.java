@@ -50,6 +50,8 @@ public class SecurityConfiguration {
                         "/api/v1/auth/**",
                         "/api/v1/payments/health",
                         "/api/v1/payments/webhooks/stripe",
+                        "/payments/health",
+                        "/payments/api/v1/webhooks/stripe",
                         "/api/v1/subscriptions/health",
                         "/api/v1/webhooks/stripe",
                         "/api/v1/health/device-management",
