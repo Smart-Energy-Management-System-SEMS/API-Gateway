@@ -27,6 +27,7 @@ public class GatewayRouteConfiguration {
     private final boolean useDeployUrls;
     private final int maxAttempts;
     private final long backoffMillis;
+    private final String paymentsServiceUrl;
     private final List<ServiceRouteConfig> fallbackServices;
 
     public GatewayRouteConfiguration(
@@ -50,6 +51,7 @@ public class GatewayRouteConfiguration {
         this.useDeployUrls = useDeployUrls;
         this.maxAttempts = maxAttempts;
         this.backoffMillis = backoffMillis;
+        this.paymentsServiceUrl = paymentsServiceUrl;
         this.fallbackServices = List.of(
                 new ServiceRouteConfig("iam-service", iamServiceUrl, List.of("/api/v1/auth/**", "/api/v1/users/**")),
                 new ServiceRouteConfig("device-management-service", deviceManagementServiceUrl, List.of("/api/v1/devices/**", "/api/v1/users/*/devices/**", "/api/v1/users/*/bindings/**", "/api/v1/bindings/**", "/api/v1/configurations/**", "/api/v1/health/device-management")),
@@ -68,6 +70,11 @@ public class GatewayRouteConfiguration {
 
         var services = fetchServicesConfig(servicesEndpoint);
         var routes = builder.routes();
+
+        routes.route("payments-service-prefixed", r -> r
+                .path("/payments/**")
+                .filters(f -> f.rewritePath("/payments/?(?<remaining>.*)", "/${remaining}"))
+                .uri(paymentsServiceUrl));
 
         for (var service : services) {
             for (var pathPattern : service.pathPatterns()) {
