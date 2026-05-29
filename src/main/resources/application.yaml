@@ -11,6 +11,13 @@ spring:
       httpclient:
         connect-timeout: 5000
         response-timeout: ${API_GATEWAY_TIMEOUT_SECONDS:30}s
+      routes:
+        - id: payments-service
+          uri: http://localhost:8086
+          predicates:
+            - Path=/payments/**
+          filters:
+            - StripPrefix=1
 
 management:
   endpoints:
