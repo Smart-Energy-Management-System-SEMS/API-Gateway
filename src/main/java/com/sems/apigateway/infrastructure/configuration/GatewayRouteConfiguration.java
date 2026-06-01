@@ -54,12 +54,12 @@ public class GatewayRouteConfiguration {
         this.paymentsServiceUrl = paymentsServiceUrl;
         this.fallbackServices = List.of(
                 new ServiceRouteConfig("iam-service", iamServiceUrl, List.of("/api/v1/auth/**", "/api/v1/users/**")),
-                new ServiceRouteConfig("device-management-service", deviceManagementServiceUrl, List.of("/api/v1/devices/**", "/api/v1/users/*/devices/**", "/api/v1/users/*/bindings/**", "/api/v1/bindings/**", "/api/v1/configurations/**", "/api/v1/health/device-management")),
-                new ServiceRouteConfig("alert-service", alertServiceUrl, List.of("/api/v1/alerts-service/**")),
+                new ServiceRouteConfig("device-management-service", deviceManagementServiceUrl, List.of("/api/v1/device-management/**")),
+                new ServiceRouteConfig("alert-service", alertServiceUrl, List.of("/api/v1/alerts/**", "/api/v1/users/*/alerts/**", "/api/v1/thresholds/**", "/api/v1/users/*/thresholds/**", "/api/v1/inactivity-rules/**", "/api/v1/users/*/inactivity-rules/**", "/api/v1/notification-preferences/**", "/api/v1/users/*/notification-preferences/**", "/api/v1/kafka/publish-test")),
                 new ServiceRouteConfig("subscriptions-service", subscriptionsServiceUrl, List.of("/api/v1/subscription-plans/**", "/api/v1/subscriptions/**", "/api/v1/webhooks/stripe")),
-                new ServiceRouteConfig("payments-service", paymentsServiceUrl, List.of("/payments/**")),
+                new ServiceRouteConfig("payments-service", paymentsServiceUrl, List.of("/api/v1/payment-methods/**", "/api/v1/payments/**", "/api/v1/invoices/**", "/api/v1/webhooks/stripe", "/health")),
                 new ServiceRouteConfig("analytics-service", analyticsServiceUrl, List.of("/api/v1/analytics/**")),
-                new ServiceRouteConfig("energy-monitoring-service", energyMonitoringServiceUrl, List.of("/api/v1/energy/**"))
+                new ServiceRouteConfig("energy-monitoring-service", energyMonitoringServiceUrl, List.of("/api/v1/energy-readings/**", "/api/v1/energy-meters/**", "/api/v1/device-consumptions/**", "/api/v1/consumption-alerts/**"))
         );
     }
 
