@@ -50,12 +50,10 @@ public class SecurityConfiguration {
                         "/api/v1/auth/**",
                         "/api/v1/payments/health",
                         "/api/v1/payments/webhooks/stripe",
-                        "/payments/health",
-                        "/payments/api/v1/webhooks/stripe",
                         "/api/v1/subscriptions/health",
-                        "/api/v1/webhooks/stripe",
-                        "/api/v1/health/device-management",
-                        "/api/v1/alerts-service/health",
+                        "/api/v1/subscriptions/webhooks/stripe",
+                        "/api/v1/device-management/health",
+                        "/api/v1/alerts/health",
                         "/api/v1/analytics/health",
                         "/api/v1/energy/health"
                 ).permitAll()
