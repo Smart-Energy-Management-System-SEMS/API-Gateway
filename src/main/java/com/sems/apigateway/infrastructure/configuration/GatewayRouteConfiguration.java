@@ -88,6 +88,10 @@ public class GatewayRouteConfiguration {
             }
         }
 
+        routeDocumentationEndpoints(routes, services, "iam-service");
+        routeDocumentationEndpoints(routes, services, "analytics-service");
+        routeDocumentationEndpoints(routes, services, "energy-monitoring-service");
+
         // Internal health endpoint for this gateway instance.
         routes.route("gateway-health", r -> r
                 .path("/health", "/gateway/health")
@@ -261,6 +265,41 @@ public class GatewayRouteConfiguration {
             case "energy-monitoring-service" -> "/api/v1/energy/health".equals(pathPattern) ? "/api/v1/health" : null;
             default -> null;
         };
+    }
+
+    private void routeDocumentationEndpoints(
+            RouteLocatorBuilder.Builder routes,
+            List<ServiceRouteConfig> services,
+            String serviceName) {
+        String targetBaseUrl = findServiceBaseUrl(services, serviceName);
+        if (targetBaseUrl == null) {
+            return;
+        }
+
+        switch (serviceName) {
+            case "iam-service" -> routes.route("iam-service-docs", r -> r
+                    .path("/iam/swagger-ui.html", "/iam/swagger-ui/**", "/iam/v3/api-docs", "/iam/v3/api-docs/**")
+                    .filters(f -> f.rewritePath("/iam/(?<segment>.*)", "/${segment}"))
+                    .uri(targetBaseUrl));
+            case "analytics-service" -> routes.route("analytics-service-docs", r -> r
+                    .path("/api/v1/analytics/docs", "/api/v1/analytics/docs/**", "/api/v1/analytics/redoc", "/api/v1/analytics/openapi.json")
+                    .filters(f -> f.rewritePath("/api/v1/analytics/(?<segment>docs(?:/.*)?|redoc|openapi\\.json)", "/${segment}"))
+                    .uri(targetBaseUrl));
+            case "energy-monitoring-service" -> routes.route("energy-monitoring-service-docs", r -> r
+                    .path("/api/v1/energy/docs", "/api/v1/energy/docs/**", "/api/v1/energy/redoc", "/api/v1/energy/openapi.json")
+                    .filters(f -> f.rewritePath("/api/v1/energy/(?<segment>docs(?:/.*)?|redoc|openapi\\.json)", "/${segment}"))
+                    .uri(targetBaseUrl));
+            default -> {
+            }
+        }
+    }
+
+    private String findServiceBaseUrl(List<ServiceRouteConfig> services, String serviceName) {
+        return services.stream()
+                .filter(service -> service.name().equals(serviceName))
+                .map(ServiceRouteConfig::targetBaseUrl)
+                .findFirst()
+                .orElse(null);
     }
 
     private String stripHttpMethodPrefix(String rawEndpoint) {

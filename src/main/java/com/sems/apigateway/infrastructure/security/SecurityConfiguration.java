@@ -48,6 +48,10 @@ public class SecurityConfiguration {
                         "/actuator/health/**",
                         "/iam/health",
                         "/api/v1/auth/**",
+                        "/iam/swagger-ui.html",
+                        "/iam/swagger-ui/**",
+                        "/iam/v3/api-docs",
+                        "/iam/v3/api-docs/**",
                         "/api/v1/payments/health",
                         "/api/v1/payments/webhooks/stripe",
                         "/api/v1/subscriptions/health",
@@ -55,7 +59,15 @@ public class SecurityConfiguration {
                         "/api/v1/device-management/health",
                         "/api/v1/alerts/health",
                         "/api/v1/analytics/health",
-                        "/api/v1/energy/health"
+                        "/api/v1/analytics/docs",
+                        "/api/v1/analytics/docs/**",
+                        "/api/v1/analytics/redoc",
+                        "/api/v1/analytics/openapi.json",
+                        "/api/v1/energy/health",
+                        "/api/v1/energy/docs",
+                        "/api/v1/energy/docs/**",
+                        "/api/v1/energy/redoc",
+                        "/api/v1/energy/openapi.json"
                 ).permitAll()
                 .anyExchange().authenticated())
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
