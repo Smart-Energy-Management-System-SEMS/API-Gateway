@@ -14,7 +14,9 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 @Component
@@ -72,19 +74,17 @@ public class GatewayRouteConfiguration {
         var services = fetchServicesConfig(servicesEndpoint);
         var routes = builder.routes();
 
-        for (var service : services) {
-            for (var pathPattern : service.pathPatterns()) {
-                String internalPath = resolveInternalPathOverride(service.name(), pathPattern);
-                if (internalPath != null) {
-                    routes.route(service.name() + "-" + sanitizeRouteId(pathPattern), r -> r
-                            .path(pathPattern)
-                            .filters(f -> f.rewritePath(Pattern.quote(pathPattern), internalPath))
-                            .uri(service.targetBaseUrl()));
-                } else {
-                    routes.route(service.name() + "-" + sanitizeRouteId(pathPattern), r -> r
-                            .path(pathPattern)
-                            .uri(service.targetBaseUrl()));
-                }
+        for (var routeEntry : sortRouteEntries(services)) {
+            String internalPath = resolveInternalPathOverride(routeEntry.serviceName(), routeEntry.pathPattern());
+            if (internalPath != null) {
+                routes.route(routeEntry.serviceName() + "-" + sanitizeRouteId(routeEntry.pathPattern()), r -> r
+                        .path(routeEntry.pathPattern())
+                        .filters(f -> f.rewritePath(Pattern.quote(routeEntry.pathPattern()), internalPath))
+                        .uri(routeEntry.targetBaseUrl()));
+            } else {
+                routes.route(routeEntry.serviceName() + "-" + sanitizeRouteId(routeEntry.pathPattern()), r -> r
+                        .path(routeEntry.pathPattern())
+                        .uri(routeEntry.targetBaseUrl()));
             }
         }
 
@@ -146,12 +146,7 @@ public class GatewayRouteConfiguration {
             try {
                 String name = requiredText(serviceNode, "name");
                 String baseUrl = resolveBaseUrl(serviceNode);
-                List<String> pathPatterns = toPathPatterns(name, serviceNode.path("main_endpoints"));
-
-                if (pathPatterns.isEmpty()) {
-                    String routePrefix = requiredText(serviceNode, "route_prefix");
-                    pathPatterns.add(normalizeRoutePattern(name, routePrefix.endsWith("/**") ? routePrefix : routePrefix + "/**"));
-                }
+                List<String> pathPatterns = collectPathPatterns(name, serviceNode);
 
                 services.add(new ServiceRouteConfig(name, baseUrl, pathPatterns));
             } catch (Exception ex) {
@@ -200,6 +195,25 @@ public class GatewayRouteConfiguration {
         return fallback;
     }
 
+    private List<String> collectPathPatterns(String serviceName, JsonNode serviceNode) {
+        Set<String> patterns = new LinkedHashSet<>();
+
+        patterns.addAll(toPathPatterns(serviceName, serviceNode.path("routes")));
+        patterns.addAll(toPathPatterns(serviceName, serviceNode.path("main_endpoints")));
+
+        String routePrefix = serviceNode.path("route_prefix").asText("").trim();
+        if (!routePrefix.isBlank()) {
+            String normalizedPrefix = routePrefix.endsWith("/**") ? routePrefix : routePrefix + "/**";
+            patterns.add(normalizeRoutePattern(serviceName, normalizedPrefix));
+        }
+
+        if (patterns.isEmpty()) {
+            throw new IllegalStateException("Service " + serviceName + " has no routable paths in Config-Service response");
+        }
+
+        return sortPathPatterns(patterns);
+    }
+
     private List<String> toPathPatterns(String serviceName, JsonNode endpointsNode) {
         List<String> patterns = new ArrayList<>();
 
@@ -208,7 +222,7 @@ public class GatewayRouteConfiguration {
         }
 
         for (JsonNode endpointNode : endpointsNode) {
-            String rawPath = endpointNode.asText("").trim();
+            String rawPath = extractEndpointPath(endpointNode);
             if (rawPath.isBlank()) {
                 continue;
             }
@@ -223,10 +237,62 @@ public class GatewayRouteConfiguration {
                     .replaceAll(":([^/]+)", "*")));
         }
 
-        patterns.sort(Comparator
-                .comparingInt(GatewayRouteConfiguration::wildcardCount)
-                .thenComparing(Comparator.comparingInt(String::length).reversed()));
+        return sortPathPatterns(patterns);
+    }
+
+    private List<String> sortPathPatterns(Iterable<String> rawPatterns) {
+        List<String> patterns = new ArrayList<>();
+        for (String pattern : rawPatterns) {
+            if (pattern != null && !pattern.isBlank()) {
+                patterns.add(pattern);
+            }
+        }
+
+        patterns.sort(pathSpecificityComparator());
         return patterns;
+    }
+
+    private List<RouteEntry> sortRouteEntries(List<ServiceRouteConfig> services) {
+        List<RouteEntry> routeEntries = new ArrayList<>();
+
+        for (ServiceRouteConfig service : services) {
+            for (String pathPattern : service.pathPatterns()) {
+                routeEntries.add(new RouteEntry(service.name(), service.targetBaseUrl(), pathPattern));
+            }
+        }
+
+        routeEntries.sort(Comparator
+                .comparing(RouteEntry::pathPattern, pathSpecificityComparator())
+                .thenComparing(RouteEntry::serviceName));
+        return routeEntries;
+    }
+
+    private static Comparator<String> pathSpecificityComparator() {
+        return Comparator
+                .comparingInt(GatewayRouteConfiguration::doubleWildcardCount)
+                .thenComparingInt(GatewayRouteConfiguration::singleWildcardCount)
+                .thenComparing(Comparator.comparingInt(String::length).reversed());
+    }
+
+    private String extractEndpointPath(JsonNode endpointNode) {
+        if (endpointNode == null || endpointNode.isNull()) {
+            return "";
+        }
+
+        if (endpointNode.isTextual()) {
+            return endpointNode.asText("").trim();
+        }
+
+        if (endpointNode.isObject()) {
+            for (String fieldName : List.of("path", "endpoint", "route", "pattern", "url", "uri")) {
+                String candidate = endpointNode.path(fieldName).asText("").trim();
+                if (!candidate.isBlank()) {
+                    return candidate;
+                }
+            }
+        }
+
+        return "";
     }
 
     private String normalizeRoutePattern(String serviceName, String pathPattern) {
@@ -370,6 +436,14 @@ public class GatewayRouteConfiguration {
         return count;
     }
 
+    private static int doubleWildcardCount(String pathPattern) {
+        return pathPattern.split("\\*\\*", -1).length - 1;
+    }
+
+    private static int singleWildcardCount(String pathPattern) {
+        return wildcardCount(pathPattern) - (doubleWildcardCount(pathPattern) * 2);
+    }
+
     private void sleepBackoff(int attempt) {
         if (attempt >= maxAttempts || backoffMillis <= 0) {
             return;
@@ -384,5 +458,8 @@ public class GatewayRouteConfiguration {
     }
 
     private record ServiceRouteConfig(String name, String targetBaseUrl, List<String> pathPatterns) {
+    }
+
+    private record RouteEntry(String serviceName, String targetBaseUrl, String pathPattern) {
     }
 }

@@ -56,13 +56,6 @@ public class InMemoryGatewayRouteRepository implements GatewayRouteRepository {
                         RouteStatus.ACTIVE
                 ),
                 new GatewayRoute(
-                        "iam-users",
-                        "/api/v1/users/**",
-                        new ServiceEndpoint("iam-service", iamServiceUrl, "/api/v1/users"),
-                        new RoutePolicy(false, null, null),
-                        RouteStatus.ACTIVE
-                ),
-                new GatewayRoute(
                         "device-management",
                         "/api/v1/device-management/**",
                         new ServiceEndpoint("device-management-service", deviceManagementServiceUrl, "/api/v1/device-management"),
@@ -136,6 +129,13 @@ public class InMemoryGatewayRouteRepository implements GatewayRouteRepository {
                         "alert-kafka-publish-test",
                         "/api/v1/kafka/publish-test",
                         new ServiceEndpoint("alert-service", alertServiceUrl, "/api/v1/kafka/publish-test"),
+                        new RoutePolicy(false, null, null),
+                        RouteStatus.ACTIVE
+                ),
+                new GatewayRoute(
+                        "iam-users",
+                        "/api/v1/users/**",
+                        new ServiceEndpoint("iam-service", iamServiceUrl, "/api/v1/users"),
                         new RoutePolicy(false, null, null),
                         RouteStatus.ACTIVE
                 ),
