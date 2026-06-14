@@ -198,6 +198,8 @@ public class GatewayRouteConfiguration {
     private List<String> collectPathPatterns(String serviceName, JsonNode serviceNode) {
         Set<String> patterns = new LinkedHashSet<>();
 
+        patterns.addAll(toPathPatterns(serviceName, serviceNode.path("health")));
+        patterns.addAll(toPathPatterns(serviceName, serviceNode.path("healthAliases")));
         patterns.addAll(toPathPatterns(serviceName, serviceNode.path("routes")));
         patterns.addAll(toPathPatterns(serviceName, serviceNode.path("main_endpoints")));
 
@@ -217,8 +219,25 @@ public class GatewayRouteConfiguration {
     private List<String> toPathPatterns(String serviceName, JsonNode endpointsNode) {
         List<String> patterns = new ArrayList<>();
 
-        if (!endpointsNode.isArray()) {
+        if (endpointsNode == null || endpointsNode.isNull()) {
             return patterns;
+        }
+
+        if (!endpointsNode.isArray()) {
+            String rawPath = extractEndpointPath(endpointsNode);
+            if (rawPath.isBlank()) {
+                return patterns;
+            }
+
+            String normalizedPath = stripHttpMethodPrefix(rawPath);
+            if (normalizedPath.isBlank()) {
+                return patterns;
+            }
+
+            patterns.add(normalizeRoutePattern(serviceName, normalizedPath
+                    .replaceAll("\\{[^/]+}", "*")
+                    .replaceAll(":([^/]+)", "*")));
+            return sortPathPatterns(patterns);
         }
 
         for (JsonNode endpointNode : endpointsNode) {
@@ -270,6 +289,7 @@ public class GatewayRouteConfiguration {
     private static Comparator<String> pathSpecificityComparator() {
         return Comparator
                 .comparingInt(GatewayRouteConfiguration::doubleWildcardCount)
+                .thenComparing(Comparator.comparingInt(GatewayRouteConfiguration::pathSegmentCount).reversed())
                 .thenComparingInt(GatewayRouteConfiguration::singleWildcardCount)
                 .thenComparing(Comparator.comparingInt(String::length).reversed());
     }
@@ -308,7 +328,7 @@ public class GatewayRouteConfiguration {
                 case "/api/v1/webhooks/stripe" -> "/api/v1/payments/webhooks/stripe";
                 default -> pathPattern;
             };
-            case "alert-service" -> "/api/v1/health".equals(pathPattern) ? "/api/v1/alerts/health" : pathPattern;
+            case "alert-service", "alerts-service" -> "/api/v1/health".equals(pathPattern) ? "/api/v1/alerts/health" : pathPattern;
             case "energy-monitoring-service" -> "/api/v1/health".equals(pathPattern) ? "/api/v1/energy/health" : pathPattern;
             default -> pathPattern;
         };
@@ -327,7 +347,7 @@ public class GatewayRouteConfiguration {
                 case "/api/v1/payments/webhooks/stripe" -> "/api/v1/webhooks/stripe";
                 default -> null;
             };
-            case "alert-service" -> "/api/v1/alerts/health".equals(pathPattern) ? "/api/v1/health" : null;
+            case "alert-service", "alerts-service" -> "/api/v1/alerts/health".equals(pathPattern) ? "/api/v1/health" : null;
             case "energy-monitoring-service" -> "/api/v1/energy/health".equals(pathPattern) ? "/api/v1/health" : null;
             default -> null;
         };
@@ -442,6 +462,12 @@ public class GatewayRouteConfiguration {
 
     private static int singleWildcardCount(String pathPattern) {
         return wildcardCount(pathPattern) - (doubleWildcardCount(pathPattern) * 2);
+    }
+
+    private static int pathSegmentCount(String pathPattern) {
+        return (int) java.util.Arrays.stream(pathPattern.split("/"))
+                .filter(segment -> !segment.isBlank())
+                .count();
     }
 
     private void sleepBackoff(int attempt) {
