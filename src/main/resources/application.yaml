@@ -55,7 +55,7 @@ gateway:
       jwk-set-uri: ${GATEWAY_JWT_JWK_SET_URI:}
       secret: ${GATEWAY_JWT_SECRET:}
   cors:
-    allowed-origins: ${ALLOWED_ORIGINS:${GATEWAY_CORS_ALLOWED_ORIGINS:${API_GATEWAY_CORS_ALLOWED_ORIGINS:${GATEWAY_ALLOWED_ORIGINS:${FRONTEND_URL:}}}}}
+    allowed-origins: ${ALLOWED_ORIGINS:${GATEWAY_CORS_ALLOWED_ORIGINS:${API_GATEWAY_CORS_ALLOWED_ORIGINS:${GATEWAY_ALLOWED_ORIGINS:${FRONTEND_URL:https://sems-application-web.vercel.app}}}}}
     allowed-methods: GET,POST,PUT,PATCH,DELETE,OPTIONS
     allowed-headers: "*"
     exposed-headers: ""
