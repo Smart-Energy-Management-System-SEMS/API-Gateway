@@ -13,7 +13,10 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 @Component
@@ -53,13 +56,13 @@ public class GatewayRouteConfiguration {
         this.backoffMillis = backoffMillis;
         this.paymentsServiceUrl = paymentsServiceUrl;
         this.fallbackServices = List.of(
-                new ServiceRouteConfig("iam-service", iamServiceUrl, List.of("/api/v1/auth/**", "/api/v1/users/**")),
-                new ServiceRouteConfig("device-management-service", deviceManagementServiceUrl, List.of("/api/v1/devices/**", "/api/v1/users/*/devices/**", "/api/v1/users/*/bindings/**", "/api/v1/bindings/**", "/api/v1/configurations/**", "/api/v1/health/device-management")),
-                new ServiceRouteConfig("alert-service", alertServiceUrl, List.of("/api/v1/alerts-service/**")),
-                new ServiceRouteConfig("subscriptions-service", subscriptionsServiceUrl, List.of("/api/v1/subscription-plans/**", "/api/v1/subscriptions/**", "/api/v1/webhooks/stripe")),
-                new ServiceRouteConfig("payments-service", paymentsServiceUrl, List.of("/payments/**")),
+                new ServiceRouteConfig("iam-service", iamServiceUrl, List.of("/iam/health", "/api/v1/auth/**", "/api/v1/users/**")),
+                new ServiceRouteConfig("device-management-service", deviceManagementServiceUrl, List.of("/api/v1/device-management/**")),
+                new ServiceRouteConfig("alert-service", alertServiceUrl, List.of("/api/v1/alerts/health", "/api/v1/alerts/**", "/api/v1/users/*/alerts/**", "/api/v1/thresholds/**", "/api/v1/users/*/thresholds/**", "/api/v1/inactivity-rules/**", "/api/v1/users/*/inactivity-rules/**", "/api/v1/notification-preferences/**", "/api/v1/users/*/notification-preferences/**", "/api/v1/kafka/publish-test")),
+                new ServiceRouteConfig("subscriptions-service", subscriptionsServiceUrl, List.of("/api/v1/subscriptions/health", "/api/v1/subscriptions/webhooks/stripe", "/api/v1/subscription-plans/**", "/api/v1/subscriptions/**")),
+                new ServiceRouteConfig("payments-service", paymentsServiceUrl, List.of("/api/v1/payments/health", "/api/v1/payments/webhooks/stripe", "/api/v1/payment-methods/**", "/api/v1/payments/**", "/api/v1/invoices/**")),
                 new ServiceRouteConfig("analytics-service", analyticsServiceUrl, List.of("/api/v1/analytics/**")),
-                new ServiceRouteConfig("energy-monitoring-service", energyMonitoringServiceUrl, List.of("/api/v1/energy/**"))
+                new ServiceRouteConfig("energy-monitoring-service", energyMonitoringServiceUrl, List.of("/api/v1/energy/health", "/api/v1/energy/**", "/api/v1/energy-readings/**", "/api/v1/energy-meters/**", "/api/v1/device-consumptions/**", "/api/v1/consumption-alerts/**"))
         );
     }
 
@@ -71,26 +74,23 @@ public class GatewayRouteConfiguration {
         var services = fetchServicesConfig(servicesEndpoint);
         var routes = builder.routes();
 
-        routes.route("payments-service-prefixed", r -> r
-                .path("/payments/**")
-                .filters(f -> f.rewritePath("/payments/?(?<remaining>.*)", "/${remaining}"))
-                .uri(paymentsServiceUrl));
-
-        for (var service : services) {
-            for (var pathPattern : service.pathPatterns()) {
-                if ("/payments/**".equals(pathPattern)) {
-                    routes.route(service.name() + "-" + sanitizeRouteId(pathPattern), r -> r
-                            .path("/payments/**")
-                            .filters(f -> f.rewritePath("/payments/?(?<remaining>.*)", "/${remaining}"))
-                            .uri(service.targetBaseUrl()));
-                    continue;
-                }
-
-                routes.route(service.name() + "-" + sanitizeRouteId(pathPattern), r -> r
-                        .path(pathPattern)
-                        .uri(service.targetBaseUrl()));
+        for (var routeEntry : sortRouteEntries(services)) {
+            String internalPath = resolveInternalPathOverride(routeEntry.serviceName(), routeEntry.pathPattern());
+            if (internalPath != null) {
+                routes.route(routeEntry.serviceName() + "-" + sanitizeRouteId(routeEntry.pathPattern()), r -> r
+                        .path(routeEntry.pathPattern())
+                        .filters(f -> f.rewritePath(Pattern.quote(routeEntry.pathPattern()), internalPath))
+                        .uri(routeEntry.targetBaseUrl()));
+            } else {
+                routes.route(routeEntry.serviceName() + "-" + sanitizeRouteId(routeEntry.pathPattern()), r -> r
+                        .path(routeEntry.pathPattern())
+                        .uri(routeEntry.targetBaseUrl()));
             }
         }
+
+        routeDocumentationEndpoints(routes, services, "iam-service");
+        routeDocumentationEndpoints(routes, services, "analytics-service");
+        routeDocumentationEndpoints(routes, services, "energy-monitoring-service");
 
         // Internal health endpoint for this gateway instance.
         routes.route("gateway-health", r -> r
@@ -146,12 +146,7 @@ public class GatewayRouteConfiguration {
             try {
                 String name = requiredText(serviceNode, "name");
                 String baseUrl = resolveBaseUrl(serviceNode);
-                List<String> pathPatterns = toPathPatterns(serviceNode.path("main_endpoints"));
-
-                if (pathPatterns.isEmpty()) {
-                    String routePrefix = requiredText(serviceNode, "route_prefix");
-                    pathPatterns.add(routePrefix.endsWith("/**") ? routePrefix : routePrefix + "/**");
-                }
+                List<String> pathPatterns = collectPathPatterns(name, serviceNode);
 
                 services.add(new ServiceRouteConfig(name, baseUrl, pathPatterns));
             } catch (Exception ex) {
@@ -200,15 +195,53 @@ public class GatewayRouteConfiguration {
         return fallback;
     }
 
-    private List<String> toPathPatterns(JsonNode endpointsNode) {
+    private List<String> collectPathPatterns(String serviceName, JsonNode serviceNode) {
+        Set<String> patterns = new LinkedHashSet<>();
+
+        patterns.addAll(toPathPatterns(serviceName, serviceNode.path("health")));
+        patterns.addAll(toPathPatterns(serviceName, serviceNode.path("healthAliases")));
+        patterns.addAll(toPathPatterns(serviceName, serviceNode.path("routes")));
+        patterns.addAll(toPathPatterns(serviceName, serviceNode.path("main_endpoints")));
+
+        String routePrefix = serviceNode.path("route_prefix").asText("").trim();
+        if (!routePrefix.isBlank()) {
+            String normalizedPrefix = routePrefix.endsWith("/**") ? routePrefix : routePrefix + "/**";
+            patterns.add(normalizeRoutePattern(serviceName, normalizedPrefix));
+        }
+
+        if (patterns.isEmpty()) {
+            throw new IllegalStateException("Service " + serviceName + " has no routable paths in Config-Service response");
+        }
+
+        return sortPathPatterns(patterns);
+    }
+
+    private List<String> toPathPatterns(String serviceName, JsonNode endpointsNode) {
         List<String> patterns = new ArrayList<>();
 
-        if (!endpointsNode.isArray()) {
+        if (endpointsNode == null || endpointsNode.isNull()) {
             return patterns;
         }
 
+        if (!endpointsNode.isArray()) {
+            String rawPath = extractEndpointPath(endpointsNode);
+            if (rawPath.isBlank()) {
+                return patterns;
+            }
+
+            String normalizedPath = stripHttpMethodPrefix(rawPath);
+            if (normalizedPath.isBlank()) {
+                return patterns;
+            }
+
+            patterns.add(normalizeRoutePattern(serviceName, normalizedPath
+                    .replaceAll("\\{[^/]+}", "*")
+                    .replaceAll(":([^/]+)", "*")));
+            return sortPathPatterns(patterns);
+        }
+
         for (JsonNode endpointNode : endpointsNode) {
-            String rawPath = endpointNode.asText("").trim();
+            String rawPath = extractEndpointPath(endpointNode);
             if (rawPath.isBlank()) {
                 continue;
             }
@@ -218,12 +251,141 @@ public class GatewayRouteConfiguration {
                 continue;
             }
 
-            patterns.add(normalizedPath
+            patterns.add(normalizeRoutePattern(serviceName, normalizedPath
                     .replaceAll("\\{[^/]+}", "*")
-                    .replaceAll(":([^/]+)", "*"));
+                    .replaceAll(":([^/]+)", "*")));
         }
 
+        return sortPathPatterns(patterns);
+    }
+
+    private List<String> sortPathPatterns(Iterable<String> rawPatterns) {
+        List<String> patterns = new ArrayList<>();
+        for (String pattern : rawPatterns) {
+            if (pattern != null && !pattern.isBlank()) {
+                patterns.add(pattern);
+            }
+        }
+
+        patterns.sort(pathSpecificityComparator());
         return patterns;
+    }
+
+    private List<RouteEntry> sortRouteEntries(List<ServiceRouteConfig> services) {
+        List<RouteEntry> routeEntries = new ArrayList<>();
+
+        for (ServiceRouteConfig service : services) {
+            for (String pathPattern : service.pathPatterns()) {
+                routeEntries.add(new RouteEntry(service.name(), service.targetBaseUrl(), pathPattern));
+            }
+        }
+
+        routeEntries.sort(Comparator
+                .comparing(RouteEntry::pathPattern, pathSpecificityComparator())
+                .thenComparing(RouteEntry::serviceName));
+        return routeEntries;
+    }
+
+    private static Comparator<String> pathSpecificityComparator() {
+        return Comparator
+                .comparingInt(GatewayRouteConfiguration::doubleWildcardCount)
+                .thenComparing(Comparator.comparingInt(GatewayRouteConfiguration::pathSegmentCount).reversed())
+                .thenComparingInt(GatewayRouteConfiguration::singleWildcardCount)
+                .thenComparing(Comparator.comparingInt(String::length).reversed());
+    }
+
+    private String extractEndpointPath(JsonNode endpointNode) {
+        if (endpointNode == null || endpointNode.isNull()) {
+            return "";
+        }
+
+        if (endpointNode.isTextual()) {
+            return endpointNode.asText("").trim();
+        }
+
+        if (endpointNode.isObject()) {
+            for (String fieldName : List.of("path", "endpoint", "route", "pattern", "url", "uri")) {
+                String candidate = endpointNode.path(fieldName).asText("").trim();
+                if (!candidate.isBlank()) {
+                    return candidate;
+                }
+            }
+        }
+
+        return "";
+    }
+
+    private String normalizeRoutePattern(String serviceName, String pathPattern) {
+        return switch (serviceName) {
+            case "iam-service" -> "/actuator/health".equals(pathPattern) ? "/iam/health" : pathPattern;
+            case "subscriptions-service" -> switch (pathPattern) {
+                case "/health" -> "/api/v1/subscriptions/health";
+                case "/api/v1/webhooks/stripe" -> "/api/v1/subscriptions/webhooks/stripe";
+                default -> pathPattern;
+            };
+            case "payments-service" -> switch (pathPattern) {
+                case "/health" -> "/api/v1/payments/health";
+                case "/api/v1/webhooks/stripe" -> "/api/v1/payments/webhooks/stripe";
+                default -> pathPattern;
+            };
+            case "alert-service", "alerts-service" -> "/api/v1/health".equals(pathPattern) ? "/api/v1/alerts/health" : pathPattern;
+            case "energy-monitoring-service" -> "/api/v1/health".equals(pathPattern) ? "/api/v1/energy/health" : pathPattern;
+            default -> pathPattern;
+        };
+    }
+
+    private String resolveInternalPathOverride(String serviceName, String pathPattern) {
+        return switch (serviceName) {
+            case "iam-service" -> "/iam/health".equals(pathPattern) ? "/actuator/health" : null;
+            case "subscriptions-service" -> switch (pathPattern) {
+                case "/api/v1/subscriptions/health" -> "/health";
+                case "/api/v1/subscriptions/webhooks/stripe" -> "/api/v1/webhooks/stripe";
+                default -> null;
+            };
+            case "payments-service" -> switch (pathPattern) {
+                case "/api/v1/payments/health" -> "/health";
+                case "/api/v1/payments/webhooks/stripe" -> "/api/v1/webhooks/stripe";
+                default -> null;
+            };
+            case "alert-service", "alerts-service" -> "/api/v1/alerts/health".equals(pathPattern) ? "/api/v1/health" : null;
+            case "energy-monitoring-service" -> "/api/v1/energy/health".equals(pathPattern) ? "/api/v1/health" : null;
+            default -> null;
+        };
+    }
+
+    private void routeDocumentationEndpoints(
+            RouteLocatorBuilder.Builder routes,
+            List<ServiceRouteConfig> services,
+            String serviceName) {
+        String targetBaseUrl = findServiceBaseUrl(services, serviceName);
+        if (targetBaseUrl == null) {
+            return;
+        }
+
+        switch (serviceName) {
+            case "iam-service" -> routes.route("iam-service-docs", r -> r
+                    .path("/iam/swagger-ui.html", "/iam/swagger-ui/**", "/iam/v3/api-docs", "/iam/v3/api-docs/**")
+                    .filters(f -> f.rewritePath("/iam/(?<segment>.*)", "/${segment}"))
+                    .uri(targetBaseUrl));
+            case "analytics-service" -> routes.route("analytics-service-docs", r -> r
+                    .path("/api/v1/analytics/docs", "/api/v1/analytics/docs/**", "/api/v1/analytics/redoc", "/api/v1/analytics/openapi.json")
+                    .filters(f -> f.rewritePath("/api/v1/analytics/(?<segment>docs(?:/.*)?|redoc|openapi\\.json)", "/${segment}"))
+                    .uri(targetBaseUrl));
+            case "energy-monitoring-service" -> routes.route("energy-monitoring-service-docs", r -> r
+                    .path("/api/v1/energy/docs", "/api/v1/energy/docs/**", "/api/v1/energy/redoc", "/api/v1/energy/openapi.json")
+                    .filters(f -> f.rewritePath("/api/v1/energy/(?<segment>docs(?:/.*)?|redoc|openapi\\.json)", "/${segment}"))
+                    .uri(targetBaseUrl));
+            default -> {
+            }
+        }
+    }
+
+    private String findServiceBaseUrl(List<ServiceRouteConfig> services, String serviceName) {
+        return services.stream()
+                .filter(service -> service.name().equals(serviceName))
+                .map(ServiceRouteConfig::targetBaseUrl)
+                .findFirst()
+                .orElse(null);
     }
 
     private String stripHttpMethodPrefix(String rawEndpoint) {
@@ -284,6 +446,30 @@ public class GatewayRouteConfiguration {
         return input.replace("/", "_").replace("*", "wild").replace("{", "").replace("}", "").replace(":", "");
     }
 
+    private static int wildcardCount(String pathPattern) {
+        int count = 0;
+        for (int i = 0; i < pathPattern.length(); i++) {
+            if (pathPattern.charAt(i) == '*') {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int doubleWildcardCount(String pathPattern) {
+        return pathPattern.split("\\*\\*", -1).length - 1;
+    }
+
+    private static int singleWildcardCount(String pathPattern) {
+        return wildcardCount(pathPattern) - (doubleWildcardCount(pathPattern) * 2);
+    }
+
+    private static int pathSegmentCount(String pathPattern) {
+        return (int) java.util.Arrays.stream(pathPattern.split("/"))
+                .filter(segment -> !segment.isBlank())
+                .count();
+    }
+
     private void sleepBackoff(int attempt) {
         if (attempt >= maxAttempts || backoffMillis <= 0) {
             return;
@@ -298,5 +484,8 @@ public class GatewayRouteConfiguration {
     }
 
     private record ServiceRouteConfig(String name, String targetBaseUrl, List<String> pathPatterns) {
+    }
+
+    private record RouteEntry(String serviceName, String targetBaseUrl, String pathPattern) {
     }
 }

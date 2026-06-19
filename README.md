@@ -1,191 +1,97 @@
 # API Gateway SEMS
 
-API Gateway centralizado para SEMS construido con **Java 17**, **Spring Boot**, **Spring Cloud Gateway** y **Maven**.
+API Gateway de SEMS en Java/Spring Boot, preparado para ejecución local y despliegue como contenedor en Azure Container Apps.
 
-Su responsabilidad es actuar como punto de entrada unico entre frontend y microservicios, aplicando politicas transversales:
-- Enrutamiento HTTP por servicio
-- Rewrites de paths
-- CORS
-- Health checks
-- Logging global de requests
-- Seguridad JWT con activacion por variable de entorno
+## Requisitos
 
-## Arquitectura general
+- Java 21
+- Maven 3.9+
+- Docker (opcional para ejecución en contenedor)
 
-Este proyecto usa una estructura orientada a DDD para separar responsabilidades del Gateway (sin logica de negocio de microservicios):
+## Health checks
 
-```text
-api-gateway/
-|-- src/main/java/com/sems/apigateway/
-|   |-- application/
-|   |   |-- commandservices/
-|   |   |-- eventhandlers/
-|   |   |-- outboundservices/
-|   |   `-- queryservices/
-|   |-- domain/
-|   |   |-- model/
-|   |   |   |-- aggregates/
-|   |   |   |-- commands/
-|   |   |   |-- entities/
-|   |   |   |-- queries/
-|   |   |   `-- valueobjects/
-|   |   |-- repositories/
-|   |   `-- services/
-|   |-- infrastructure/
-|   |   |-- configuration/
-|   |   |-- gateway/
-|   |   |-- security/
-|   |   |-- cors/
-|   |   `-- filters/
-|   |-- interfaces/
-|   |   `-- rest/
-|   |       |-- controllers/
-|   |       |-- resources/
-|   |       `-- transform/
-|   `-- shared/
-|       |-- constants/
-|       |-- exceptions/
-|       `-- utils/
-|-- src/main/resources/application.yaml
-|-- .env.example
-|-- pom.xml
-`-- README.md
-```
+- `GET /actuator/health`
+- `GET /gateway/health` (forward interno a Actuator Health)
 
-## Microservicios integrados
+## Configuración por variables de entorno
 
-- IAM Service
-- Device Management Service
-- Alert Service
-- Subscriptions Service
-- Payments Service
-- Analytics Service
-- Energy Monitoring Service (pendiente de despliegue)
+El servicio lee variables desde `application.yaml` (sin hardcodear `localhost` para rutas de microservicios en despliegue):
 
-## Variables de entorno
-
-Definidas en `.env.example`.
-
-Variables clave:
-- `PORT`
-- `FRONTEND_URL`
-- `GATEWAY_ALLOWED_ORIGINS`
-- `GATEWAY_SECURITY_ENABLED`
-- `GATEWAY_JWT_JWK_SET_URI` o `GATEWAY_JWT_SECRET`
-- `SUBSCRIPTIONS_SERVICE_URL`
-- `ANALYTICS_SERVICE_URL`
-- `DEVICE_MANAGEMENT_SERVICE_URL`
-- `PAYMENTS_SERVICE_URL`
-- `ALERT_SERVICE_URL`
+- `PORT` / `SERVER_PORT` para el puerto (`server.port: ${SERVER_PORT:${PORT:8080}}`)
+- `CONFIG_SERVICE_URL`
 - `IAM_SERVICE_URL`
+- `DEVICE_MANAGEMENT_SERVICE_URL`
+- `ALERT_SERVICE_URL`
+- `SUBSCRIPTIONS_SERVICE_URL`
+- `PAYMENTS_SERVICE_URL`
+- `ANALYTICS_SERVICE_URL`
 - `ENERGY_MONITORING_SERVICE_URL`
+- Variables opcionales de seguridad/CORS y timeouts
 
-## Rutas principales del Gateway
+Usa `.env.example` como plantilla.
 
-| Dominio | Ruta externa Gateway | Upstream interno |
-|---|---|---|
-| Gateway Health | `GET /gateway/health` | Respuesta local del gateway |
-| IAM Auth | `/api/v1/auth/**` | `IAM_SERVICE_URL/api/v1/auth/**` |
-| IAM Users | `/api/v1/users/**` | `IAM_SERVICE_URL/api/v1/users/**` |
-| IAM Health | `GET /iam/health` | `IAM_SERVICE_URL/actuator/health` |
-| Device Health | `GET /api/v1/health/device-management` | `/api/v1/device-management/health` |
-| Devices | `/api/v1/devices/**` | `/api/v1/device-management/devices/**` |
-| User Devices | `/api/v1/users/{userId}/devices/**` | `/api/v1/device-management/users/{userId}/devices/**` |
-| User Bindings | `/api/v1/users/{userId}/bindings/**` | `/api/v1/device-management/users/{userId}/bindings/**` |
-| Bindings | `/api/v1/bindings/**` | `/api/v1/device-management/bindings/**` |
-| Configurations | `/api/v1/configurations/**` | `/api/v1/device-management/configurations/**` |
-| Alert Service | `/api/v1/alerts-service/**` | `ALERT_SERVICE_URL/api/v1/**` |
-| Subscriptions Health | `GET /api/v1/subscriptions/health` | `SUBSCRIPTIONS_SERVICE_URL/health` |
-| Subscription Plans | `/api/v1/subscription-plans/**` | `SUBSCRIPTIONS_SERVICE_URL/api/v1/subscription-plans/**` |
-| Subscriptions | `/api/v1/subscriptions/**` | `SUBSCRIPTIONS_SERVICE_URL/api/v1/subscriptions/**` |
-| Subscriptions Webhook | `POST /api/v1/webhooks/stripe` | `SUBSCRIPTIONS_SERVICE_URL/api/v1/webhooks/stripe` |
-| Payments Health | `GET /api/v1/payments/health` | `PAYMENTS_SERVICE_URL/health` |
-| Payments Webhook | `POST /api/v1/payments/webhooks/stripe` | `PAYMENTS_SERVICE_URL/api/v1/webhooks/stripe` |
-| Payment Methods | `/api/v1/payments/payment-methods/**` | `PAYMENTS_SERVICE_URL/api/v1/payment-methods/**` |
-| Invoices | `/api/v1/payments/invoices/**` | `PAYMENTS_SERVICE_URL/api/v1/invoices/**` |
-| Payments Core | `/api/v1/payments/process`, `/api/v1/payments/{id}`, `/api/v1/payments/user/**`, `/api/v1/payments/subscription/**` | `PAYMENTS_SERVICE_URL` |
-| Analytics | `/api/v1/analytics/**` | `ANALYTICS_SERVICE_URL/api/v1/analytics/**` |
-| Energy | `/api/v1/energy/**` | `ENERGY_MONITORING_SERVICE_URL/api/v1/energy/**` |
+## Ejecución local (sin Docker)
 
-## CORS
-
-CORS habilitado para:
-- `http://localhost:5173`
-- `http://localhost:4200`
-- valor de `FRONTEND_URL` y `GATEWAY_ALLOWED_ORIGINS`
-
-Metodos permitidos: `GET, POST, PUT, PATCH, DELETE, OPTIONS`.
-
-## Seguridad JWT
-
-Controlada por `GATEWAY_SECURITY_ENABLED`.
-
-- `false`: todas las rutas pasan sin validacion de token.
-- `true`: se exige JWT para rutas de negocio.
-
-Rutas publicas cuando seguridad esta activa:
-- `/gateway/health`
-- `/actuator/health/**`
-- `/iam/health`
-- `/api/v1/auth/**`
-- `/api/v1/payments/health`
-- `/api/v1/payments/webhooks/stripe`
-- `/api/v1/subscriptions/health`
-- `/api/v1/webhooks/stripe`
-- `/api/v1/health/device-management`
-- `/api/v1/alerts-service/health`
-- `/api/v1/analytics/health`
-- `/api/v1/energy/health`
-
-## Logging
-
-Filtro global de gateway (`RequestLoggingFilter`) registra por request:
-- metodo HTTP
-- path
-- status code
-- tiempo de respuesta en ms
-
-## Ejecucion local
-
-1. Configurar variables de entorno (puedes partir de `.env.example`).
-2. Ejecutar:
+1. Configura variables de entorno (puedes copiar `.env.example` a `.env` para referencia local).
+2. Ejecuta:
 
 ```bash
 mvn spring-boot:run
 ```
 
-Gateway por defecto: `http://localhost:8089`.
+Por defecto queda en `http://localhost:8080` si no defines `PORT`.
 
-## Compilacion
+## Docker
 
-```bash
-mvn clean package
-```
-
-## Despliegue en Render
-
-1. Crear nuevo Web Service en Render con repo del gateway.
-2. Runtime: Java 17.
-3. Build command:
+### Build de imagen
 
 ```bash
-mvn clean package
+docker build -t sems-api-gateway:latest .
 ```
 
-4. Start command:
+### Run de contenedor
 
 ```bash
-java -jar target/api-gateway-sems-0.0.1-SNAPSHOT.jar
+docker run --rm -p 8080:8080 \
+  -e PORT=8080 \
+  -e CONFIG_SERVICE_URL=http://config-service:8090 \
+  -e IAM_SERVICE_URL=http://iam-service:8080 \
+  -e DEVICE_MANAGEMENT_SERVICE_URL=http://device-management-service:8080 \
+  -e ALERT_SERVICE_URL=http://alert-service:8080 \
+  -e SUBSCRIPTIONS_SERVICE_URL=http://subscriptions-service:8080 \
+  -e PAYMENTS_SERVICE_URL=http://payments-service:8080 \
+  -e ANALYTICS_SERVICE_URL=http://analytics-service:8080 \
+  -e ENERGY_MONITORING_SERVICE_URL=http://energy-monitoring-service:8080 \
+  sems-api-gateway:latest
 ```
 
-5. Definir variables de entorno en Render:
-- URLs de microservicios (`*_SERVICE_URL`)
-- `GATEWAY_SECURITY_ENABLED`
-- JWT (`GATEWAY_JWT_JWK_SET_URI` o `GATEWAY_JWT_SECRET` si aplica)
-- CORS (`FRONTEND_URL`, `GATEWAY_ALLOWED_ORIGINS`)
+## Ejemplo Azure Container Apps
 
-## Importante
+Ejemplo base (ajusta `RESOURCE_GROUP`, `ENVIRONMENT_NAME`, `ACR_LOGIN_SERVER` e imagen):
 
-Este API Gateway **no** se conecta directamente a PostgreSQL, Neon, MongoDB, Stripe, Twilio, Gmail, Google OAuth ni Kafka.
+```bash
+az containerapp create \
+  --name sems-api-gateway \
+  --resource-group <RESOURCE_GROUP> \
+  --environment <ENVIRONMENT_NAME> \
+  --image <ACR_LOGIN_SERVER>/sems-api-gateway:latest \
+  --target-port 8080 \
+  --ingress external \
+  --env-vars \
+    PORT=8080 \
+    SPRING_PROFILES_ACTIVE=prod \
+    CONFIG_SERVICE_URL=https://config-service.<domain> \
+    IAM_SERVICE_URL=https://iam-service.<domain> \
+    DEVICE_MANAGEMENT_SERVICE_URL=https://device-management-service.<domain> \
+    ALERT_SERVICE_URL=https://alert-service.<domain> \
+    SUBSCRIPTIONS_SERVICE_URL=https://subscriptions-service.<domain> \
+    PAYMENTS_SERVICE_URL=https://payments-service.<domain> \
+    ANALYTICS_SERVICE_URL=https://analytics-service.<domain> \
+    ENERGY_MONITORING_SERVICE_URL=https://energy-monitoring-service.<domain>
+```
 
-Esas integraciones pertenecen a cada microservicio. El Gateway solo enruta y aplica politicas transversales.
+## Notas
+
+- No se cambió lógica de negocio ni contratos de endpoints de negocio.
+- Para local puedes seguir usando URLs locales mediante variables de entorno.
+- En Azure define siempre URLs desplegadas, no `localhost`.

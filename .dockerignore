@@ -1,0 +1,13 @@
+.git
+.github
+.idea
+target
+out
+.vscode
+*.iml
+*.log
+.env
+Dockerfile*
+README.md
+Config
+Microservices

@@ -4,6 +4,9 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+# Local secrets and env files
+.env
+
 ### STS ###
 .apt_generated
 .classpath
@@ -31,3 +34,4 @@ build/
 
 ### VS Code ###
 .vscode/
+Post.txt
