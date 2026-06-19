@@ -8,6 +8,8 @@ spring:
     web-application-type: reactive
   cloud:
     gateway:
+      default-filters:
+        - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Vary, RETAIN_UNIQUE
       httpclient:
         connect-timeout: 5000
         response-timeout: ${API_GATEWAY_TIMEOUT_SECONDS:30}s
